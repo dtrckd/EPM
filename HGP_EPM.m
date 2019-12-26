@@ -1,4 +1,4 @@
-function [AUCroc,AUCpr,F1,Phi,Lambda_KK,r_k,ProbAve,m_i_k_dot_dot,output,z]=HGP_EPM(B,K, idx_train,idx_test,Burnin, Collections, IsDisplay, Datatype, Modeltype)
+function [AUCroc,AUCpr,F1,Phi,Lambda_KK,r_k,ProbAve,m_i_k_dot_dot,output,z, Wreal, Wpred, WSIM]=HGP_EPM(B, K, idx_train,idx_test,Burnin, Collections, IsDisplay, Datatype, Modeltype)
 %Code for Hierachical Gamma Process Edge Partition Model
 %Mingyuan Zhou, Oct, 2014
 %Input:
@@ -72,6 +72,8 @@ AUC = zeros(1,iterMax);
 
 ProbSamples = zeros(N,N);
 r_k=ones(K,1)/K;
+
+Wpred_samples = zeros(size(idx_test));
 
 
 
@@ -262,16 +264,22 @@ for iter=1:iterMax
     beta1 = randg(sum(R_KK(diagdex))+sum(R_KK(triu1dex))+1e-0)./(1e-0+ sum(Lambda_KK(diagdex))+sum(Lambda_KK(triu1dex)));
     beta2 = beta1;
     
+    Prob = Phi*(Lambda_KK)*Phi'+EPS;
     
+    %% WSIM
+    aWpred = Prob(idx_test);
     
-    Prob =Phi*(Lambda_KK)*Phi'+EPS;
     Prob = 1-exp(-Prob);
     if iter>Burnin
         %ProbSamples(:,:,iter-Burnin) = Prob;
         ProbSamples = ProbSamples +  Prob;
         ProbAve = ProbSamples/(iter-Burnin);
+
+        Wpred_samples = Wpred_samples + aWpred;
+        Wpred = Wpred_samples / (iter-Burnin);
     else
         ProbAve = Prob;
+        Wpred = aWpred;
     end
     %output.Loglike_Train(iter) = mean(B(idx_train).*log(max(ProbAve(idx_train),realmin))+(1-B(idx_train)).*log(max(1-ProbAve(idx_train),realmin)));
     %output.Loglike_Test(iter) = mean(B(idx_test).*log(max(ProbAve(idx_test),realmin))+(1-B(idx_test)).*log(max(1-ProbAve(idx_test),realmin)));
@@ -367,34 +375,47 @@ if isempty(idx_test)
     rate = ProbAve(idx_train);
     idx_test = idx_train;
 end
-figure;
-subplot(1,2,1)
-links = double(B(idx_test)>0);
-[~,dex]=sort(rate,'descend');
-subplot(2,2,1);plot(rate(dex))
-subplot(2,2,2);plot(links(dex),'*')
-subplot(2,2,3);
-[X,Y,T,AUCroc] = perfcurve(links,rate,1);
-plot(X,Y);
-axis([0 1 0 1]), grid on, xlabel('FPR'), ylabel('TPR'), hold on;
-x = [0:0.1:1];plot(x,x,'b--'), hold off; title(['AUCroc = ', num2str(AUCroc)])
-subplot(2,2,4)
-[prec, tpr, fpr, thresh] = prec_rec(rate, links,  'numThresh',3000);
-plot([0; tpr], [1 ; prec]); % add pseudo point to complete curve
-xlabel('recall');
-ylabel('precision');
-title('precision-recall graph');
-AUCpr = trapz([0;tpr],[1;prec]);
-F1= max(2*tpr.*prec./(tpr+prec));
-title(['AUCpr = ', num2str(AUCpr), '; F1 = ', num2str(F1)])
+
+if IsDisplay
+    figure;
+    subplot(1,2,1)
+    links = double(B(idx_test)>0);
+    [~,dex]=sort(rate,'descend');
+    subplot(2,2,1);plot(rate(dex))
+    subplot(2,2,2);plot(links(dex),'*')
+    subplot(2,2,3);
+    [X,Y,T,AUCroc] = perfcurve(links,rate,1);
+    plot(X,Y);
+    axis([0 1 0 1]), grid on, xlabel('FPR'), ylabel('TPR'), hold on;
+    x = [0:0.1:1];plot(x,x,'b--'), hold off; title(['AUCroc = ', num2str(AUCroc)])
+    subplot(2,2,4)
+    [prec, tpr, fpr, thresh] = prec_rec(rate, links,  'numThresh',3000);
+    plot([0; tpr], [1 ; prec]); % add pseudo point to complete curve
+    xlabel('recall');
+    ylabel('precision');
+    title('precision-recall graph');
+    AUCpr = trapz([0;tpr],[1;prec]);
+    F1= max(2*tpr.*prec./(tpr+prec));
+    title(['AUCpr = ', num2str(AUCpr), '; F1 = ', num2str(F1)])
 
 
-figure;
-subplot(2,4,1); imagesc((AA(Rankdex,Rankdex)).*BTrain_Mask(Rankdex,Rankdex));
-subplot(2,4,2); imagesc((1-exp(-ProbAve(Rankdex,Rankdex))).*BTrain_Mask(Rankdex,Rankdex));
-subplot(2,4,3); imagesc((AA(Rankdex,Rankdex)).*~BTrain_Mask(Rankdex,Rankdex));
-subplot(2,4,4);imagesc((1-exp(-ProbAve(Rankdex,Rankdex))).*~BTrain_Mask(Rankdex,Rankdex));
-subplot(2,4,5);plot(sum(m_i_k_dot_dot(rdex,Rankdex)'>0,2),'*');
-subplot(2,4,6);imagesc(log10(m_i_k_dot_dot(rdex,rdex)+0.1)');
-subplot(2,4,7);imagesc(1-exp(-Phi(Rankdex,:)*(Lambda_KK-diag(diag(Lambda_KK)))*Phi(Rankdex,:)'));
-subplot(2,4,8);imagesc(1-exp(-Phi(Rankdex,:)*(diag(diag(Lambda_KK)))*Phi(Rankdex,:)'));
+    figure;
+    subplot(2,4,1); imagesc((AA(Rankdex,Rankdex)).*BTrain_Mask(Rankdex,Rankdex));
+    subplot(2,4,2); imagesc((1-exp(-ProbAve(Rankdex,Rankdex))).*BTrain_Mask(Rankdex,Rankdex));
+    subplot(2,4,3); imagesc((AA(Rankdex,Rankdex)).*~BTrain_Mask(Rankdex,Rankdex));
+    subplot(2,4,4);imagesc((1-exp(-ProbAve(Rankdex,Rankdex))).*~BTrain_Mask(Rankdex,Rankdex));
+    subplot(2,4,5);plot(sum(m_i_k_dot_dot(rdex,Rankdex)'>0,2),'*');
+    subplot(2,4,6);imagesc(log10(m_i_k_dot_dot(rdex,rdex)+0.1)');
+    subplot(2,4,7);imagesc(1-exp(-Phi(Rankdex,:)*(Lambda_KK-diag(diag(Lambda_KK)))*Phi(Rankdex,:)'));
+    subplot(2,4,8);imagesc(1-exp(-Phi(Rankdex,:)*(diag(diag(Lambda_KK)))*Phi(Rankdex,:)'));
+else
+    links = double(B(idx_test)>0);
+    [X,Y,T,AUCroc] = perfcurve(links,rate,1);
+    [prec, tpr, fpr, thresh] = prec_rec(rate, links,  'numThresh',3000);
+    AUCpr = trapz([0;tpr],[1;prec]);
+    F1= max(2*tpr.*prec./(tpr+prec));
+end
+
+
+Wreal = B(idx_test);
+WSIM = mean((Wreal - Wpred).^2); % MSE
