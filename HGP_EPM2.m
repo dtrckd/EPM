@@ -1,4 +1,4 @@
-function [AUCroc,AUCpr,F1,Phi,Lambda_KK,r_k,ProbAve,m_i_k_dot_dot,output,z, Wreal, Wpred, WSIM, WSIM2]=HGP_EPM(B, K, idx_train,idx_test,Burnin, Collections, IsDisplay, Datatype, Modeltype, is_symmetric)
+function [AUCroc,AUCpr,F1,Phi,Lambda_KK,r_k,ProbAve,m_i_k_dot_dot,output,z, Wreal, Wpred, WSIM, WSIM2]=HGP_EPM2(B, K, idx_train,idx_test,Burnin, Collections, IsDisplay, Datatype, Modeltype, is_symmetric)
 %Code for Hierachical Gamma Process Edge Partition Model
 %Mingyuan Zhou, Oct, 2014
 %Input:
