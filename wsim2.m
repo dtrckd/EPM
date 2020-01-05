@@ -24,7 +24,7 @@ function [WSIM2]=wsim2(B, idx_test, Theta, Phi, is_symmetric)
     for i=1:length(is)
         i_ = is(i);
         j_ = js(i);
-        w_ = B(i_, j_);
+        w_ = full(B(i_, j_));
         pp(c(i_), c(j_)) = pp(c(i_), c(j_)) + w_;
     end
 
@@ -35,8 +35,10 @@ function [WSIM2]=wsim2(B, idx_test, Theta, Phi, is_symmetric)
     for i=1:length(idx_test)
         i_ = is(i);
         j_ = js(i);
+
+        %fprintf('ci %d, cj %d, pp_ij %.2f, b_ij %.2f\n', c(i_),c(j_),pp(c(i_), c(j_)), full(B(i_, j_)) );
         ws(i) = pp(c(i_), c(j_));
-        wd(i) = B(i_, j_);
+        wd(i) = full(B(i_, j_));
     end
 
     WSIM2 = mean((ws - wd).^2); % MSE

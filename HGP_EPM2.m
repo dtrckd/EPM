@@ -1,10 +1,10 @@
-function [AUCroc,AUCpr,F1,Phi,Lambda_KK,r_k,ProbAve,m_i_k_dot_dot,output,z, Wreal, Wpred, WSIM, WSIM2]=HGP_EPM2(B, K, idx_train,idx_test,Burnin, Collections, IsDisplay, Datatype, Modeltype, is_symmetric)
+function [AUCroc,AUCpr,F1,Phi,Lambda_KK,r_k,ProbAve,m_i_k_dot_dot,output,z, Wreal, Wpred, WSIM, WSIM2]=HGP_EPM2(B, K, idx_train,Ytest,Burnin, Collections, IsDisplay, Datatype, Modeltype, is_symmetric)
 %Code for Hierachical Gamma Process Edge Partition Model
 %Mingyuan Zhou, Oct, 2014
 %Input:
 %B is an upper triagular matrix, the diagonal terms are not defined
 %idx_train: training indices
-%idx_test: test indices
+%Ytest: sparse matrice of test indices
 %K: truncated number of atoms
 %Datatype: 'Count' or 'Binary'. Use 'Count' for integer-weigted edges.
 
@@ -19,12 +19,6 @@ function [AUCroc,AUCpr,F1,Phi,Lambda_KK,r_k,ProbAve,m_i_k_dot_dot,output,z, Wrea
 %ProbeAve: ProbeAve(i,j) is the estimated probability for nodes $i$ and $j$ to be linked
 %z: hard community assignment
 
-if ~exist('idx_train','var')
-    idx_train = find(triu(true(size(B)),1));
-end
-if ~exist('idx_test','var')
-    idx_test = [];
-end
 if ~exist('K','var')
     K = 100;
 end
@@ -47,12 +41,15 @@ end
 iterMax = Burnin+Collections;
 N = size(B,2);
 
-BTrain_Mask = zeros(size(B));
-BTrain_Mask(idx_train) = 1;
-BTrain_Mask=BTrain_Mask+BTrain_Mask';
+idx_test = find(Ytest);
+
+%BTrain_Mask = sparse(zeros(size(B)));
+%BTrain_Mask(~idx_test) = 1;
+%BTrain_Mask=BTrain_Mask+BTrain_Mask';
+
 
 BTrain = B;
-BTrain(idx_test)= 0;
+BTrain(idx_test) = 0;
 
 [ii,jj,M]=find(BTrain);
 idx  = sub2ind([N,N],ii,jj);
@@ -126,77 +123,31 @@ for iter=1:iterMax
     %Number of communities assigned with nonzero counts
     output.K_positive(iter) = nnz(sum(m_i_k_dot_dot,2));
     
-    
-    if 0 %iter>100
-        %First sample all $a_i$ and then sample all $phi_ik$ is faster but
-        %may provide worse performance
-        %Sample a_i
-        Phi_times_Lambda_KK = Phi*Lambda_KK;
-        ell = CRT_sum_mex_matrix(sparse(m_i_k_dot_dot),a_i')';
-        if isempty(idx_test)
-            a_i = randg(1e-2+ell)./(1e-2- sum(log(max(1./(1+ bsxfun(@minus,sum(Phi_times_Lambda_KK,1),Phi_times_Lambda_KK)./c_i(:,ones(1,K))), realmin)),2));
-        else
-            a_i = randg(1e-2+ell)./(1e-2- sum(log(max(1./(1+ BTrain_Mask*Phi_times_Lambda_KK./c_i(:,ones(1,K))), realmin)),2));
-        end
         
-        %Sample phi_ik
-        Phi_temp = randg(bsxfun(@plus,a_i, m_i_k_dot_dot'));
-        if isempty(idx_test) %IsMexOK
-            temp = sum(Phi_times_Lambda_KK,1);
-            for i=randperm(N)
-                temp = temp - Phi_times_Lambda_KK(i,:);
-                Phi(i,:) = Phi_temp(i,:)./(c_i(i)+temp);
-                Phi_times_Lambda_KK(i,:) = Phi(i,:)*Lambda_KK;
-                temp = temp + Phi_times_Lambda_KK(i,:);
-            end
-        else
-            for i=randperm(N)
-                Phi(i,:) =  Phi_temp(i,:)./(c_i(i)+BTrain_Mask(i,:)*Phi_times_Lambda_KK);
-                Phi_times_Lambda_KK(i,:) = Phi(i,:)*Lambda_KK;
-            end
-        end
-        
-    else
-        
-        %Sample a_i and phi_ik
-        Phi_times_Lambda_KK = Phi*Lambda_KK;
-        if isempty(idx_test)
-            temp = sum(Phi_times_Lambda_KK,1);
-            for i=randperm(N)
-                temp = temp - Phi_times_Lambda_KK(i,:);
-                ell = CRT_sum_mex(m_i_k_dot_dot(:,i),a_i(i));
-                p_ik_prime_one_minus = c_i(i)./(c_i(i)+temp);
-                a_i(i) = randg(ell+1e-2)/(1e-2-sum(log(max(p_ik_prime_one_minus,realmin))));
-                Phi(i,:) =  randg(a_i(i) + m_i_k_dot_dot(:,i))'./(c_i(i)+temp);
-                Phi_times_Lambda_KK(i,:) = Phi(i,:)*Lambda_KK;
-                temp = temp + Phi_times_Lambda_KK(i,:);
-            end
-        else
-            for i=randperm(N)
-                ell = CRT_sum_mex(m_i_k_dot_dot(:,i),a_i(i));
-                p_ik_prime_one_minus = c_i(i)./(c_i(i)+(BTrain_Mask(i,:))*Phi_times_Lambda_KK);
-                a_i(i) = gamrnd(ell+1e-2,1./(1e-2-sum(log(max(p_ik_prime_one_minus,realmin)))));
-                %Phi(i,:) =  randg(a_i(i) + m_i_k_dot_dot(:,i))'./(c_i(i)+(BTrain_Mask(i,:))*Phi_times_Lambda_KK);
-                Phi(i,:) =  randg(a_i(i) + m_i_k_dot_dot(:,i))'.*p_ik_prime_one_minus/c_i(i);
-                Phi_times_Lambda_KK(i,:) = Phi(i,:)*Lambda_KK;
-            end
-        end
+    %Sample a_i and phi_ik
+    Phi_times_Lambda_KK = Phi*Lambda_KK;
+
+    for i=randperm(N)
+        ell = CRT_sum_mex(m_i_k_dot_dot(:,i),a_i(i));
+        p_ik_prime_one_minus = c_i(i)./(c_i(i)+(~Ytest(i,:))*Phi_times_Lambda_KK);
+        a_i(i) = gamrnd(ell+1e-2,1./(1e-2-sum(log(max(p_ik_prime_one_minus,realmin)))));
+        Phi(i,:) =  randg(a_i(i) + m_i_k_dot_dot(:,i))'.*p_ik_prime_one_minus/c_i(i);
+        Phi_times_Lambda_KK(i,:) = Phi(i,:)*Lambda_KK;
     end
+
     %Sample c_i
     c_i = gamrnd(1e-0 + K*a_i,1./(1e-0 +  sum(Phi,2)));
     
     %Phi_KK(k_1,k_2) = 2^{-\delta(k_2=k_1)} \sum_{i}\sum_{j\neq i} \phi_{ik_1} \phi_{jk_2}
-    if isempty(idx_test)
-        Phi_KK = Phi'*bsxfun(@minus,sum(Phi,1),Phi);
-    else
-        Phi_KK = Phi'*BTrain_Mask*Phi;
-    end
+
+    %Phi_KK = Phi'*BTrain_Mask*Phi;
+    Phi_KK = (repmat(sum(Phi', 2), 1, N) - Phi'*Ytest)*Phi;
+
     Phi_KK(sparse(1:K,1:K,true)) = Phi_KK(sparse(1:K,1:K,true))/2;
     
     triu1dex = triu(true(K),1);
     triu2dex = (true(K) - eye(K)) > 0 ;
     diagdex = sparse(1:K,1:K,true);
-    
     
     %Sample r_k
     L_KK=zeros(K,K);
@@ -293,13 +244,11 @@ for iter=1:iterMax
         Wpred = aWpred;
         WSIM2 = aWsim2;
     end
-    %output.Loglike_Train(iter) = mean(B(idx_train).*log(max(ProbAve(idx_train),realmin))+(1-B(idx_train)).*log(max(1-ProbAve(idx_train),realmin)));
-    %output.Loglike_Test(iter) = mean(B(idx_test).*log(max(ProbAve(idx_test),realmin))+(1-B(idx_test)).*log(max(1-ProbAve(idx_test),realmin)));
     
     
     %  rate = 1-exp(-ProbAve(idx_test));
     rate= Prob(idx_test);
-    links = double(B(idx_test)>0);
+    links = full(double(B(idx_test)>0));
     AUC(iter) = aucROC(rate,links);
     %[~,~,~,AUC(iter)] = perfcurve(links,rate,1);
     
@@ -355,27 +304,15 @@ for iter=1:iterMax
 end
 
 rate = ProbAve(idx_test);
-% zerorows = find((sum(BTrain_Mask.*(B+B'),2)==0&sum(~BTrain_Mask.*(B+B'),2)>0));
-% %zerorows = find((sum(BTrain_Mask.*(B+B'),2)==0));
-% for j=1:length(idx_test)
-%     [i1,j1]=ind2sub([N,N],idx_test(j));
-%     if nnz(i1==zerorows)>0 || nnz(j1==zerorows)>0
-%         rate(j)=mean(rate);
-%     end
-% end
 
-if isempty(idx_test)
-    rate = ProbAve(idx_train);
-    idx_test = idx_train;
-end
 
-links = double(B(idx_test)>0);
+links = full(double(B(idx_test)>0));
 [X,Y,T,AUCroc] = perfcurve(links,rate,1);
 [prec, tpr, fpr, thresh] = prec_rec(rate, links,  'numThresh',3000);
 AUCpr = trapz([0;tpr],[1;prec]);
 F1= max(2*tpr.*prec./(tpr+prec));
 
 
-Wreal = B(idx_test);
+Wreal = full(B(idx_test));
 WSIM = mean((Wreal - Wpred).^2); % MSE
 WSIM2 = WSIM2;
