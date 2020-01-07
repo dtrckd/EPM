@@ -1,4 +1,4 @@
-function [AUCroc,AUCpr,F1,Phi,Lambda_KK,r_k,ProbAve,m_i_k_dot_dot,output,z, Wreal, Wpred, WSIM, WSIM2]=HGP_EPM2(B, K, idx_train,Ytest,Burnin, Collections, IsDisplay, Datatype, Modeltype, is_symmetric)
+function [timing,AUC,AUCroc,AUCpr,F1,Phi,Lambda_KK,r_k,ProbAve,m_i_k_dot_dot,output,z, Wreal, Wpred, Wpred2, WSIM, WSIM2]=HGP_EPM2(B, K, idx_train,Ytest,Burnin, Collections, IsDisplay, Datatype, Modeltype, is_symmetric)
 %Code for Hierachical Gamma Process Edge Partition Model
 %Mingyuan Zhou, Oct, 2014
 %Input:
@@ -18,6 +18,9 @@ function [AUCroc,AUCpr,F1,Phi,Lambda_KK,r_k,ProbAve,m_i_k_dot_dot,output,z, Wrea
 %m_i_k_dot_dot: m_i_k_dot_dot(k,i) is the count that node $i$ sends to community $k$
 %ProbeAve: ProbeAve(i,j) is the estimated probability for nodes $i$ and $j$ to be linked
 %z: hard community assignment
+
+tic
+measure_freq = 5;
 
 if ~exist('K','var')
     K = 100;
@@ -43,6 +46,10 @@ N = size(B,2);
 
 idx_test = find(Ytest);
 
+Wreal = full(B(idx_test))';
+links = double(Wreal>0);
+
+
 %BTrain_Mask = sparse(zeros(size(B)));
 %BTrain_Mask(~idx_test) = 1;
 %BTrain_Mask=BTrain_Mask+BTrain_Mask';
@@ -62,12 +69,13 @@ output.K_positive = zeros(1,iterMax);
 output.K_hardassignment= zeros(1,iterMax);
 output.Loglike_Train = zeros(1,iterMax);
 output.Loglike_Test = zeros(1,iterMax);
-AUC = zeros(1,iterMax);
+AUC = zeros(1,iterMax/measure_freq);
 
-ProbSamples = zeros(N,N);
 r_k=ones(K,1)/K;
 
-Wpred_samples = zeros(size(idx_test));
+ProbSamples = zeros(1, length(idx_test));
+Wpred_samples = zeros(1, length(idx_test));
+Wpred_samples2 = zeros(1, length(idx_test));
 Wsim2_samples = 0;
 
 
@@ -95,6 +103,15 @@ Kmin=inf;
 EPS=0.01;
 EPS=0;
 
+%%% Temp test
+%aWpred = zeros(1, length(idx_test));
+%for l=1:length(idx_test)
+%    [i,j] = ind2sub(size(B), idx_test(l));
+%    aWpred(l) = Phi(i,:) * Lambda_KK * Phi(j,:)';
+%end
+%aWpred = aWpred + EPS;
+%Prob = 1-exp(-aWpred);
+%aucROC(Prob,links);
 
 for iter=1:iterMax
     
@@ -220,99 +237,78 @@ for iter=1:iterMax
     end
     beta2 = beta1;
     
-    Prob = Phi*(Lambda_KK)*Phi'+EPS;
-    aWsim2 = wsim2(B, idx_test, Phi, Lambda_KK, is_symmetric);
+    %Prob = Phi*(Lambda_KK)*Phi'+EPS;
+    %aWpred = Prob(idx_test);
     
     %% WSIM
-    aWpred = Prob(idx_test);
-
-    %fprintf('%.2f %.2f\n', aWpred, aWsim2)
+    aWpred = zeros(1, length(idx_test));
+    for l=1:length(idx_test)
+        [i,j] = ind2sub(size(B), idx_test(l));
+        aWpred(l) = Phi(i,:) * Lambda_KK * Phi(j,:)';
+    end
+    aWpred = aWpred + EPS;
     
-    Prob = 1-exp(-Prob);
+    %% WSIM2
+    %[aWsim2, aWpred2] = wsim2(B, idx_test, Phi, Lambda_KK, is_symmetric);
+
+    %% Pij
+    Prob = 1-exp(-aWpred);
+
     if iter>Burnin
         %ProbSamples(:,:,iter-Burnin) = Prob;
-        ProbSamples = ProbSamples +  Prob;
+        ProbSamples = ProbSamples + Prob;
         ProbAve = ProbSamples/(iter-Burnin);
 
         Wpred_samples = Wpred_samples + aWpred;
         Wpred = Wpred_samples / (iter-Burnin);
 
-        Wsim2_samples = Wsim2_samples + aWsim2;
-        WSIM2 = Wsim2_samples / (iter-Burnin);
+        %Wpred_samples2 = Wpred_samples2 + aWpred2;
+        %Wpred2 = Wpred_samples2 / (iter-Burnin);
+
+        %Wsim2_samples = Wsim2_samples + aWsim2;
+        %WSIM2 = Wsim2_samples / (iter-Burnin);
     else
         ProbAve = Prob;
         Wpred = aWpred;
-        WSIM2 = aWsim2;
+        %Wpred2 = aWpred2;
+        %WSIM2 = aWsim2;
     end
     
     
-    %  rate = 1-exp(-ProbAve(idx_test));
-    rate= Prob(idx_test);
-    links = full(double(B(idx_test)>0));
-    AUC(iter) = aucROC(rate,links);
-    %[~,~,~,AUC(iter)] = perfcurve(links,rate,1);
-    
-    
-    
+    if mod(iter, measure_freq)==0
+        rate = ProbAve;
+        AUC(iter/measure_freq) = aucROC(rate,links);
+        %fprintf('%d %s %s [%d %d] [%d %d], [%d %d]\n', iter, class(rate), class(links), size(rate), size(links), size(Wpred));
+        %fprintf('%d wsim= %.2f wsim2= %.2f', iter,mean((Wreal - Wpred).^2), WSIM2)
+    end
     
     z=zeros(1,N);
-    
-    %if iter<Burnin
-    % [~,rdex]=sort(sum(mi_dot_k,2));
-    %  [~,rdex]=sort(sum(m_i_k_dot_dot,2));
-    %   [~,rdex]=sort(r_k);
-    [~,rdex]=sort(-sum(m_dot_k_k_dot,2));
-    %rdex=1:K;
-    %Phir=Phi*sqrt(diag(r));
-    
-    
-    rrr = diag(Lambda_KK);
-    
-    
-    
-    
-    
-    %     n_k = sparse(z,1,1,K,1);
-    %     [~,zdex]=sort(n_k);
-    %     kkkk=1:K;
-    %     kkkk=kkkk(zdex);
-    %     yy=zeros(1,K);
-    %     yy(kkkk)=1:K;
-    %     z=yy(z);
-    
     %n_k = sparse(z,1,1);
     [~,rdex]=sort(sum(m_i_k_dot_dot,2),'descend');
     [~,z] = max(m_i_k_dot_dot(rdex,:),[],1);
     [~,Rankdex]=sort(z);
     output.K_hardassignment(iter) = length(unique(z));
     
-    %  end
-    %  Rankdex = 1:N;
-    
-    %%if output.Loglike_Train(iter)>LogLikeMax && iter>1000
-    %% LogLikeMax = output.Loglike_Train(iter);
-    %     if output.K_positive(iter)<=Kmin && iter>1000
-    %
-    %         Kmin = output.K_positive(iter);
-    %               Network_plot;
-    %
-    %     end
     
     if mod(iter,1000)==0
         fprintf('Iter= %d, Number of Communities = %d \n',iter, output.K_positive(iter));
     end
 end
 
-rate = ProbAve(idx_test);
+rate = ProbAve;
 
-
-links = full(double(B(idx_test)>0));
 [X,Y,T,AUCroc] = perfcurve(links,rate,1);
 [prec, tpr, fpr, thresh] = prec_rec(rate, links,  'numThresh',3000);
 AUCpr = trapz([0;tpr],[1;prec]);
 F1= max(2*tpr.*prec./(tpr+prec));
 
 
-Wreal = full(B(idx_test));
-WSIM = mean((Wreal - Wpred).^2); % MSE
-WSIM2 = WSIM2;
+WSIM = mean((Wreal(Wreal>0) - Wpred(Wreal>0)).^2); % MSE
+
+%WSIM2 = WSIM2;
+[Wsim2, aWpred2] = wsim2(B, idx_test, Phi, Lambda_KK, is_symmetric);
+WSIM2 = Wsim2;
+Wpred2 = aWpred2;
+
+timing = toc;
+

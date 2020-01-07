@@ -1,4 +1,4 @@
-function [WSIM2]=wsim2(B, idx_test, Theta, Phi, is_symmetric)
+function [WSIM2, Wpred2]=wsim2(B, idx_test, Theta, Phi, is_symmetric)
 
     [N, K] = size(Theta);
 
@@ -41,4 +41,5 @@ function [WSIM2]=wsim2(B, idx_test, Theta, Phi, is_symmetric)
         wd(i) = full(B(i_, j_));
     end
 
-    WSIM2 = mean((ws - wd).^2); % MSE
+    Wpred2 = ws;
+    WSIM2 = mean((ws(wd>0) - wd(wd>0)).^2); % MSE
