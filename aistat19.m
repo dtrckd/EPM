@@ -10,31 +10,46 @@ clear;
 
 %state = 0,1,2,3,4\\
 %state = 0;
+%
+outp = '/home/dtrckd/Desktop/workInProgress/networkofgraphs/process/repo/ml/data/mat/';
 
 %datasets = {'manufacturing'};
 %datasets = {'link-dynamic-simplewiki'};
-datasets = {'manufacturing', 'moreno_names', 'fb_uc'};
+datasets = {'fb_uc', 'moreno_names', 'manufacturing',};
 
-outp = '/home/dtrckd/Desktop/workInProgress/networkofgraphs/process/repo/ml/data/mat/';
-n_workers = 2;
-
-
-training_ratio = '100';
 testset_ratio = '20';
 validset_ratio = '10'; % put it in the training set
 
-K=10;
+training_ratios = {'100'};
+repeats = {'1'};
+Ks={10};
 
-ratio_id = ['_',training_ratio,'-',testset_ratio,'-',validset_ratio];
-
+n_workers = 2;
 
 p = parpool('local', n_workers)
 f(1:length(datasets)) = parallel.FevalFuture;
 
-%%  Run the models
-for idx=1:length(datasets)
+n_expe = length(datasets)*length(training_ratios)*length(repeats)*length(Ks);
 
-    dataset = datasets{idx}
+%%  Run the models
+idx = 0;
+for dataset_=1:length(datasets)
+for training_ratio_=1:length(training_ratios)
+for K_=1:length(Ks)
+for repeat_=1:length(repeats)
+
+    idx = idx+1;
+    dataset = datasets{dataset_}
+    training_ratio = training_ratios{training_ratio_};
+    K = Ks{K_};
+    repeat = repeats{repeat_};
+
+    expe_state = {};
+    expe_state.dataset = dataset;
+    expe_state.training_ratio = training_ratio;
+    expe_state.K = K;
+    expe_state.repeat = repeat;
+
 
     %%% Create directory
     if ~exist('results/')
@@ -58,7 +73,14 @@ for idx=1:length(datasets)
     IsDisplay = false;
 
     %%% Load dataset
-    Data = load(strcat(outp, dataset, ratio_id, '.mat'));
+    if isnan(repeat)
+        ratio_id = ['_',training_ratio,'-',testset_ratio,'-',validset_ratio];
+        fn = strcat(outp, dataset, ratio_id, '.mat');
+    else
+        ratio_id = ['_',training_ratio,'-',testset_ratio,'-',validset_ratio];
+        fn = strcat(outp, repeat,'/', dataset, ratio_id, '.mat');
+    end
+    Data = load(fn);
     B = Data.Y;
     Ytest = Data.Ytest;
     state = Data.state;
@@ -83,19 +105,26 @@ for idx=1:length(datasets)
     rng(state,'twister');
 
     %[AUCroc,AUCpr,F1,Phi,Lambda_KK,r_k,ProbAve,m_i_k_dot_dot,output,z,Wreal, Wpred, Wpred2, WSIM, WSIM2] = HGP_EPM2(B,K, nan,Ytest,Burnin, Collections, IsDisplay, Datatype, Modeltype, is_symmetric);
-    f(idx) = parfeval(p, @HGP_EPM2, 17, B, K, nan, Ytest, Burnin, Collections, IsDisplay, Datatype, Modeltype, is_symmetric);
+    f(idx) = parfeval(p, @HGP_EPM2, 18, expe_state, B, K, nan, Ytest, Burnin, Collections, IsDisplay, Datatype, Modeltype, is_symmetric);
 
 end
+end
+end
+end
 
-for idx_=1:length(datasets)
 
-    [idx,timing,AUC,AUCroc,AUCpr,F1,Phi,Lambda_KK,r_k,ProbAve,m_i_k_dot_dot,output,z,Wreal, Wpred, Wpred2, WSIM, WSIM2] = fetchNext(f);
-    dataset = datasets{idx};
+for idx_=1:n_expe
+
+    [idx,expe_state,timing,AUC,AUCroc,AUCpr,F1,Phi,Lambda_KK,r_k,ProbAve,m_i_k_dot_dot,output,z,Wreal, Wpred, Wpred2, WSIM, WSIM2] = fetchNext(f);
+
+    dataset = expe_state.dataset;
+    repeat = expe_state.repeat;
+
     fprintf('HGP_EPM %s, AUCroc = %.2f, WSIM = %.2f, WSIM2 = %.2f, Time = %.0f seconds\n', dataset, AUCroc, WSIM, WSIM2, timing);
-    f(idx_).Diary
+    f(idx).Diary
 
-    it_ = int2str(Burnin+Collections);
-    save(['results/', dataset, '/', 'wsim_all',it_,ratio_id,'.mat'], 'Wreal', 'Wpred', 'Wpred2', 'WSIM', 'WSIM2', 'AUCroc', 'timing', 'AUC')
+    format_id = ['it',int2str(Burnin+Collections),'training',training_ratio,'K',int2str(K),'rep',repeat];
+    save(['results/', dataset, '/', 'wsim_all_',format_id,ratio_id,'.mat'], 'Wreal', 'Wpred', 'Wpred2', 'WSIM', 'WSIM2', 'AUCroc', 'timing', 'AUC')
 end
 
 

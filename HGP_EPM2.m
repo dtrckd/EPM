@@ -1,4 +1,4 @@
-function [timing,AUC,AUCroc,AUCpr,F1,Phi,Lambda_KK,r_k,ProbAve,m_i_k_dot_dot,output,z, Wreal, Wpred, Wpred2, WSIM, WSIM2]=HGP_EPM2(B, K, idx_train,Ytest,Burnin, Collections, IsDisplay, Datatype, Modeltype, is_symmetric)
+function [expe_state,timing,AUC,AUCroc,AUCpr,F1,Phi,Lambda_KK,r_k,ProbAve,m_i_k_dot_dot,output,z, Wreal, Wpred, Wpred2, WSIM, WSIM2]=HGP_EPM2(expe_state, B, K, idx_train,Ytest,Burnin, Collections, IsDisplay, Datatype, Modeltype, is_symmetric)
 %Code for Hierachical Gamma Process Edge Partition Model
 %Mingyuan Zhou, Oct, 2014
 %Input:
@@ -21,7 +21,7 @@ function [timing,AUC,AUCroc,AUCpr,F1,Phi,Lambda_KK,r_k,ProbAve,m_i_k_dot_dot,out
 
 tic
 measure_freq = 5;
-
+expe_state.dataset
 if ~exist('K','var')
     K = 100;
 end
@@ -59,8 +59,7 @@ BTrain = B;
 BTrain(idx_test) = 0;
 
 [ii,jj,M]=find(BTrain);
-idx  = sub2ind([N,N],ii,jj);
-
+idx = sub2ind([N,N],ii,jj);
 
 Phi = gamrnd(1e-0*ones(N,K),1);
 
