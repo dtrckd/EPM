@@ -15,14 +15,27 @@ outp = '/home/dtrckd/Desktop/workInProgress/networkofgraphs/process/repo/ml/data
 
 %datasets = {'manufacturing'};
 %datasets = {'link-dynamic-simplewiki'};
-datasets = {'fb_uc', 'moreno_names', 'manufacturing',};
+%datasets = {'fb_uc', 'moreno_names', 'manufacturing',};
+%datasets = {'fb_uc', 'moreno_names', 'manufacturing',};
+dataset = {
+	'fb_uc',
+	'hep-th',
+	'link-dynamic-simplewiki',
+	'enron',
+	'slashdot-threads',
+	'prosper-loans',
+	'munmun_digg_reply',
+	'moreno_names',
+	'astro-ph'
+	};
 
 testset_ratio = '20';
 validset_ratio = '10'; % put it in the training set
 
-training_ratios = {'100'};
-repeats = {'1'};
-Ks={10};
+%training_ratios = {'100', '20'};
+training_ratios = {'20', '100'};
+repeats = {'1', '2', '3', '4'};
+Ks={10,20,30,50};
 
 n_workers = 2;
 
@@ -39,7 +52,7 @@ for K_=1:length(Ks)
 for repeat_=1:length(repeats)
 
     idx = idx+1;
-    dataset = datasets{dataset_}
+    dataset = datasets{dataset_};
     training_ratio = training_ratios{training_ratio_};
     K = Ks{K_};
     repeat = repeats{repeat_};
@@ -63,8 +76,8 @@ for repeat_=1:length(repeats)
 
     %Burnin=500;
     %Collections=500;
-    Burnin=5;
-    Collections=10;
+    Burnin=200;
+    Collections=100;
 
     Datatype='Count';
     %Datatype='Binary';
@@ -75,12 +88,13 @@ for repeat_=1:length(repeats)
     %%% Load dataset
     if isnan(repeat)
         ratio_id = ['_',training_ratio,'-',testset_ratio,'-',validset_ratio];
-        fn = strcat(outp, dataset, ratio_id, '.mat');
+        fnin = strcat(outp, dataset, ratio_id, '.mat');
     else
         ratio_id = ['_',training_ratio,'-',testset_ratio,'-',validset_ratio];
-        fn = strcat(outp, repeat,'/', dataset, ratio_id, '.mat');
+        fnin = strcat(outp, repeat,'/', dataset, ratio_id, '.mat');
     end
-    Data = load(fn);
+    fprintf('%s - reading in: %s\n', dataset, fnin);
+    Data = load(fnin);
     B = Data.Y;
     Ytest = Data.Ytest;
     state = Data.state;
@@ -124,7 +138,10 @@ for idx_=1:n_expe
     f(idx).Diary
 
     format_id = ['it',int2str(Burnin+Collections),'training',training_ratio,'K',int2str(K),'rep',repeat];
-    save(['results/', dataset, '/', 'wsim_all_',format_id,ratio_id,'.mat'], 'Wreal', 'Wpred', 'Wpred2', 'WSIM', 'WSIM2', 'AUCroc', 'timing', 'AUC')
+
+    fnout = ['results/', dataset, '/', 'wsim_all_',format_id,ratio_id,'.mat'];
+    fprintf('writing in: %s\n', fnout);
+    save(fnout, 'Wreal', 'Wpred', 'Wpred2', 'WSIM', 'WSIM2', 'AUCroc', 'timing', 'AUC')
 end
 
 

@@ -21,7 +21,7 @@ function [expe_state,timing,AUC,AUCroc,AUCpr,F1,Phi,Lambda_KK,r_k,ProbAve,m_i_k_
 
 tic
 measure_freq = 5;
-expe_state.dataset
+
 if ~exist('K','var')
     K = 100;
 end
@@ -69,6 +69,7 @@ output.K_hardassignment= zeros(1,iterMax);
 output.Loglike_Train = zeros(1,iterMax);
 output.Loglike_Test = zeros(1,iterMax);
 AUC = zeros(1,iterMax/measure_freq);
+last_iter = 1;
 
 r_k=ones(K,1)/K;
 
@@ -279,6 +280,7 @@ for iter=1:iterMax
         AUC(iter/measure_freq) = aucROC(rate,links);
         %fprintf('%d %s %s [%d %d] [%d %d], [%d %d]\n', iter, class(rate), class(links), size(rate), size(links), size(Wpred));
         %fprintf('%d wsim= %.2f wsim2= %.2f', iter,mean((Wreal - Wpred).^2), WSIM2)
+        last_iter = iter/measure_freq;
     end
     
     z=zeros(1,N);
@@ -289,8 +291,8 @@ for iter=1:iterMax
     output.K_hardassignment(iter) = length(unique(z));
     
     
-    if mod(iter,1000)==0
-        fprintf('Iter= %d, Number of Communities = %d \n',iter, output.K_positive(iter));
+    if mod(iter,round(iterMax/5))==0
+        fprintf('Iter= %d, AUC= %.2f,  Number of Communities = %d \n', AUC(last_iter), output.K_positive(iter));
     end
 end
 
