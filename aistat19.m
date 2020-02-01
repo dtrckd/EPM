@@ -1,3 +1,4 @@
+
 %%Demo code for Infinite Edge Partition Models (EPMs)
 
 clear;
@@ -17,39 +18,43 @@ outp = '/home/dtrckd/Desktop/workInProgress/networkofgraphs/process/repo/ml/data
 %datasets = {'link-dynamic-simplewiki'};
 %datasets = {'fb_uc', 'moreno_names', 'manufacturing',};
 %datasets = {'fb_uc', 'moreno_names', 'manufacturing',};
-dataset = {
-	'fb_uc',
-	'hep-th',
-	'link-dynamic-simplewiki',
-	'enron',
-	'slashdot-threads',
-	'prosper-loans',
+datasets = {
+	%'fb_uc',
+	%'moreno_names',
+    
+	%'hep-th',
+	%'astro-ph',
+    
 	'munmun_digg_reply',
-	'moreno_names',
-	'astro-ph'
+    'enron',
+    
+    'slashdot-threads',
+	'link-dynamic-simplewiki',
+	'prosper-loans',
 	};
 
 testset_ratio = '20';
 validset_ratio = '10'; % put it in the training set
 
 %training_ratios = {'100', '20'};
-training_ratios = {'20', '100'};
+training_ratios = {'100'};
 repeats = {'1', '2', '3', '4'};
-Ks={10,20,30,50};
+Ks={10,20,30};
 
-n_workers = 2;
+n_workers = 32;
 
-p = parpool('local', n_workers)
+%p = parpool('local', n_workers)
+p = parpool('zhou', n_workers)
 f(1:length(datasets)) = parallel.FevalFuture;
 
 n_expe = length(datasets)*length(training_ratios)*length(repeats)*length(Ks);
 
 %%  Run the models
 idx = 0;
-for dataset_=1:length(datasets)
+for repeat_=1:length(repeats)
 for training_ratio_=1:length(training_ratios)
 for K_=1:length(Ks)
-for repeat_=1:length(repeats)
+for dataset_=1:length(datasets)
 
     idx = idx+1;
     dataset = datasets{dataset_};
@@ -93,6 +98,13 @@ for repeat_=1:length(repeats)
         ratio_id = ['_',training_ratio,'-',testset_ratio,'-',validset_ratio];
         fnin = strcat(outp, repeat,'/', dataset, ratio_id, '.mat');
     end
+    iterations = int2str(Burnin+Collections);
+    format_id = ['it',iterations,'training',training_ratio,'K',int2str(K),'rep',repeat];
+
+    expe_state.ratio_id = ratio_id;
+    expe_state.iterations = iterations;
+    expe_state.fnout_job = ['/shared/persisted/wsim_',dataset,'_',format_id,ratio_id,'.mat'];
+
     fprintf('%s - reading in: %s\n', dataset, fnin);
     Data = load(fnin);
     B = Data.Y;
@@ -128,11 +140,17 @@ end
 
 
 for idx_=1:n_expe
+ 
 
     [idx,expe_state,timing,AUC,AUCroc,AUCpr,F1,Phi,Lambda_KK,r_k,ProbAve,m_i_k_dot_dot,output,z,Wreal, Wpred, Wpred2, WSIM, WSIM2] = fetchNext(f);
 
     dataset = expe_state.dataset;
     repeat = expe_state.repeat;
+    K = expe_state.K;
+    training_ratio = expe_state.training_ratio;
+    repeat = expe_state.repeat;
+    ratio_id = expe_state.ratio_id;
+    iterations = expe_state.iterations;
 
     fprintf('HGP_EPM %s, AUCroc = %.2f, WSIM = %.2f, WSIM2 = %.2f, Time = %.0f seconds\n', dataset, AUCroc, WSIM, WSIM2, timing);
     f(idx).Diary

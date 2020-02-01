@@ -21,6 +21,9 @@ function [expe_state,timing,AUC,AUCroc,AUCpr,F1,Phi,Lambda_KK,r_k,ProbAve,m_i_k_
 
 tic
 measure_freq = 5;
+save_freq = 10;
+
+fnout_job = expe_state.fnout_job;
 
 if ~exist('K','var')
     K = 100;
@@ -293,6 +296,19 @@ for iter=1:iterMax
     
     if mod(iter,round(iterMax/5))==0
         fprintf('Iter= %d, AUC= %.2f,  Number of Communities = %d \n', AUC(last_iter), output.K_positive(iter));
+    end
+
+    if mod(iter, save_freq)==0
+        AUCroc = AUC(last_iter);
+        WSIM = mean((Wreal(Wreal>0) - Wpred(Wreal>0)).^2); % MSE
+        [WSIM2, Wpred2] = wsim2(B, idx_test, Phi, Lambda_KK, is_symmetric);
+        timing = toc;
+        parsave(sprintf(fnout_job),  Wreal, Wpred, Wpred2, WSIM, WSIM2, AUCroc, timing, AUC);
+    end
+
+    current_time = toc;
+    if toc > 90000
+        break
     end
 end
 
