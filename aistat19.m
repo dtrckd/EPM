@@ -38,7 +38,7 @@ validset_ratio = '10'; % put it in the training set
 
 %training_ratios = {'100', '20'};
 training_ratios = {'100'};
-repeats = {'1', '2', '3', '4'};
+repeats = {'1', '2', '3', '4', '5'};
 Ks={10,20,30};
 
 n_workers = 32;
