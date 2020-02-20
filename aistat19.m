@@ -20,17 +20,17 @@ outp = '/home/dtrckd/Desktop/workInProgress/networkofgraphs/process/repo/ml/data
 %datasets = {'fb_uc', 'moreno_names', 'manufacturing',};
 datasets = {
 	%'fb_uc',
-	%'moreno_names',
     
-	%'hep-th',
-	%'astro-ph',
+	'moreno_names',
+	'hep-th',
+	'astro-ph',
     
-	'munmun_digg_reply',
-    'enron',
-    
-    'slashdot-threads',
-	'link-dynamic-simplewiki',
-	'prosper-loans',
+	%'munmun_digg_reply',
+    %'enron',
+    %
+    %'slashdot-threads',
+	%'link-dynamic-simplewiki',
+	%'prosper-loans',
 	};
 
 testset_ratio = '20';
@@ -39,12 +39,14 @@ validset_ratio = '10'; % put it in the training set
 %training_ratios = {'100', '20'};
 training_ratios = {'100'};
 repeats = {'1', '2', '3', '4', '5'};
-Ks={10,20,30};
+Ks={20,30};
 
-n_workers = 32;
 
-%p = parpool('local', n_workers)
-p = parpool('zhou', n_workers)
+%n_workers = 32;
+n_workers = 2;
+
+p = parpool('local', n_workers)
+%p = parpool('zhou', n_workers)
 f(1:length(datasets)) = parallel.FevalFuture;
 
 n_expe = length(datasets)*length(training_ratios)*length(repeats)*length(Ks);
@@ -113,6 +115,7 @@ for dataset_=1:length(datasets)
     is_symmetric = Data.is_symmetric;
     if is_symmetric
         B = triu(B,1);
+        Ytest = triu(Ytest,1);
     end
 
     N = size(B,2);
@@ -153,7 +156,9 @@ for idx_=1:n_expe
     iterations = expe_state.iterations;
 
     fprintf('HGP_EPM %s, AUCroc = %.2f, WSIM = %.2f, WSIM2 = %.2f, Time = %.0f seconds\n', dataset, AUCroc, WSIM, WSIM2, timing);
-    f(idx).Diary
+
+    %%% Show log from the worker, hard to read, but usefull for debugging
+    %f(idx).Diary
 
     format_id = ['it',int2str(Burnin+Collections),'training',training_ratio,'K',int2str(K),'rep',repeat];
 

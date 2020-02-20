@@ -303,7 +303,7 @@ for iter=1:iterMax
         WSIM = mean((Wreal(Wreal>0) - Wpred(Wreal>0)).^2); % MSE
         [WSIM2, Wpred2] = wsim2(B, idx_test, Phi, Lambda_KK, is_symmetric);
         timing = toc;
-        parsave(sprintf(fnout_job),  Wreal, Wpred, Wpred2, WSIM, WSIM2, AUCroc, timing, AUC);
+        %parsave(sprintf(fnout_job),  Wreal, Wpred, Wpred2, WSIM, WSIM2, AUCroc, timing, AUC);
     end
 
     current_time = toc;
